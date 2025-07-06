@@ -1,42 +1,42 @@
-// sw.js
-const CACHE_NAME = 'video-loop-cache-v6';
+const CACHE_NAME = 'video-loop-cache-final-v1';
 const ASSETS = [
   'index.html',
-  'upload.html',
-  'manifest-index.json',
-  'manifest-upload.json',
-  'video1.mp4'
+  'manifest.json',
+  'sw.js',
+  'invisible-man.jpg'  
 ];
 
+// On install: cache shell
 self.addEventListener('install', evt => {
   evt.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
     for (const url of ASSETS) {
       try {
         await cache.add(url);
-        console.log('[SW] cached:', url);
+        console.log('cached:', url);
       } catch (err) {
-        console.error('[SW] failed to cache:', url, err);
+        console.error('failed to cache:', url, err);
       }
     }
-    await self.skipWaiting();
+    self.skipWaiting();
   })());
 });
 
+// On activate: clean up old
 self.addEventListener('activate', evt => {
   evt.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(
-      keys.filter(k => k !== CACHE_NAME)
+      keys.filter(key => key !== CACHE_NAME)
           .map(old => caches.delete(old))
     );
-    await self.clients.claim();
+    self.clients.claim();
   })());
 });
 
+// On fetch: serve cache-first
 self.addEventListener('fetch', evt => {
   evt.respondWith(
-    caches.match(evt.request)
-          .then(cached => cached || fetch(evt.request))
+    caches.match(evt.request).then(cached => cached || fetch(evt.request))
   );
 });

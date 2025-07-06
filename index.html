@@ -2,53 +2,113 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Online Video Loop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VideoLoop PWA</title>
 
   <!-- Android PWA manifest -->
-  <link rel="manifest" href="manifest-index.json">
+  <link rel="manifest" href="manifest.json">
 
-  <!-- iOS standalone & icon -->
+  <!-- iOS PWA support -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="VideoLoop Online">
-  <link rel="apple-touch-icon" href="spider.png">
+  <meta name="apple-mobile-web-app-title" content="VideoLoop">
+  <link rel="apple-touch-icon" href="invisible-man.jpg">
 
+  <!-- Service Worker registration -->
   <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js')
-        .then(() => console.log('SW registered for index'))
+        .then(() => console.log('SW registered'))
         .catch(console.error);
     }
   </script>
 
   <style>
+    /* Full viewport and black background for letterboxing */
     html, body {
-      margin: 0; padding: 0;
-      width: 100%; height: 100%;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
       background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-family: sans-serif;
     }
+    /* Container for the video */
     .video-container {
       position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       overflow: hidden;
     }
     .video-container video {
       position: absolute;
-      top: 50%; left: 50%;
-      max-width: 100%; max-height: 100%;
+      top: 50%;
+      left: 50%;
+      max-width: 100%;
+      max-height: 100%;
       transform: translate(-50%, -50%);
+      background: #000;
+      cursor: pointer;
+    }
+    /* Upload form overlay */
+    #upload-form {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+    #upload-form input {
+      margin: 1em auto;
+      display: block;
     }
   </style>
 </head>
 <body>
   <div class="video-container">
-    <video autoplay muted loop playsinline preload="auto">
-      <source src="video1.mp4" type="video/mp4">
-      Your browser doesn’t support HTML5 video.
+    <video id="player" muted loop playsinline autoplay preload="auto">
+      <!-- source is set dynamically -->
     </video>
   </div>
+
+  <div id="upload-form">
+    <h1>Select a video to loop</h1>
+    <input type="file" id="file-input" accept="video/*">
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('file-input');
+    const player = document.getElementById('player');
+    const uploadForm = document.getElementById('upload-form');
+
+    // Enter fullscreen on video click (YouTube-style)
+    function enterFullscreen() {
+      if (player.requestFullscreen) {
+        player.requestFullscreen({ navigationUI: 'hide' });
+      } else if (player.webkitEnterFullscreen) {
+        player.webkitEnterFullscreen();
+      } else if (player.webkitRequestFullscreen) {
+        player.webkitRequestFullscreen();
+      } else if (player.msRequestFullscreen) {
+        player.msRequestFullscreen();
+      }
+    }
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      player.src = URL.createObjectURL(file);
+      player.play();
+      uploadForm.style.display = 'none';
+      // enable click-to-fullscreen
+      player.style.cursor = 'pointer';
+      player.addEventListener('click', enterFullscreen);
+    });
+  </script>
 </body>
 </html>

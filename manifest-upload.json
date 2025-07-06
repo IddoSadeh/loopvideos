@@ -1,0 +1,9 @@
+{
+  "name":            "VideoLoop Upload",
+  "short_name":      "VideoLoop+",
+  "start_url":       "./upload.html",
+  "scope":           "./",
+  "display":         "standalone",
+  "background_color":"#000000",
+  "theme_color":     "#000000"
+}

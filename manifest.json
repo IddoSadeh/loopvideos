@@ -1,0 +1,8 @@
+{
+  "name": "Video Loop App",
+  "short_name": "VideoLoop",
+  "start_url": ".",
+  "display": "fullscreen",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}

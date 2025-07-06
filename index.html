@@ -5,10 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Online Video Loop</title>
 
-  <!-- PWA manifest -->
+  <!-- Android PWA manifest -->
   <link rel="manifest" href="manifest-index.json">
-  <meta name="mobile-web-app-capable" content="yes">
+
+  <!-- iOS standalone & icon -->
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VideoLoop Online">
+  <link rel="apple-touch-icon" href="spider.png">
 
   <script>
     if ('serviceWorker' in navigator) {
@@ -19,21 +23,18 @@
   </script>
 
   <style>
-    /* fallback background for letterboxing */
     html, body {
       margin: 0; padding: 0;
       width: 100%; height: 100%;
       overflow: hidden;
       background: #000;
     }
-    /* full-viewport container */
     .video-container {
       position: fixed;
       top: 0; left: 0;
       width: 100%; height: 100%;
       overflow: hidden;
     }
-    /* center the video, constrain its max dimensions */
     .video-container video {
       position: absolute;
       top: 50%; left: 50%;

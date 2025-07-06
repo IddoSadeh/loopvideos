@@ -1,12 +1,12 @@
-const CACHE_NAME = 'video-loop-cache-v1';
+const CACHE_NAME = 'video-loop-cache-v2';  // bump version so browsers see the change
 const ASSETS = [
-  '/',                // serves index.html
-  '/index.html',
-  '/upload.html',
-  '/manifest.json',
-  '/video1.mp4'        // your demo clip
+  'index.html',
+  'upload.html',
+  'manifest.json',
+  'video.mp4'
 ];
 
+// On install: cache everything
 self.addEventListener('install', evt => {
   evt.waitUntil(
     caches.open(CACHE_NAME)
@@ -15,6 +15,7 @@ self.addEventListener('install', evt => {
   );
 });
 
+// On activate: remove old caches
 self.addEventListener('activate', evt => {
   evt.waitUntil(
     caches.keys().then(keys =>
@@ -28,6 +29,7 @@ self.addEventListener('activate', evt => {
   self.clients.claim();
 });
 
+// On fetch: serve from cache first
 self.addEventListener('fetch', evt => {
   evt.respondWith(
     caches.match(evt.request)

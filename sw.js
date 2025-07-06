@@ -3,7 +3,7 @@ const ASSETS = [
   'index.html',
   'upload.html',
   'manifest.json',
-  'video.mp4'
+  'video1.mp4'
 ];
 
 // On install: cache everything

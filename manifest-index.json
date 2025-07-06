@@ -1,0 +1,9 @@
+{
+  "name": "VideoLoop Online",
+  "short_name": "VideoLoop",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000"
+}

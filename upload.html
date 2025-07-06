@@ -2,18 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Upload & Loop Video</title>
 
   <!-- PWA boilerplate -->
-  <link rel="manifest" href="manifest.json">
+  <link rel="manifest" href="manifest-upload.json">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('sw.js')
-        .catch(console.error);
+      navigator.serviceWorker.register('sw.js').catch(console.error);
     }
   </script>
 

@@ -5,35 +5,46 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Online Video Loop</title>
 
-  <!-- point to the index manifest -->
-  <!-- <link rel="manifest" href="manifest-index.json"> -->
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest-index.json">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <!-- <script>
+  <script>
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js')
         .then(() => console.log('SW registered for index'))
         .catch(console.error);
     }
-  </script> -->
+  </script>
 
   <style>
-    html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#000; }
-    .video-container {
-      position:fixed; top:0; left:0; width:100%; height:100%; overflow:hidden; z-index:-1;
+    /* fallback background for letterboxing */
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: #000;
     }
+    /* full-viewport container */
+    .video-container {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      overflow: hidden;
+    }
+    /* center the video, constrain its max dimensions */
     .video-container video {
-      position:absolute; top:50%; left:50%;
-      min-width:100%; min-height:100%;
-      transform:translate(-50%,-50%); object-fit:cover;
+      position: absolute;
+      top: 50%; left: 50%;
+      max-width: 100%; max-height: 100%;
+      transform: translate(-50%, -50%);
     }
   </style>
 </head>
 <body>
   <div class="video-container">
-    <video autoplay muted loop playsinline>
-      <!-- MUST match the cached filename -->
+    <video autoplay muted loop playsinline preload="auto">
       <source src="video1.mp4" type="video/mp4">
       Your browser doesn’t support HTML5 video.
     </video>

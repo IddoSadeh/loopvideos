@@ -1,4 +1,4 @@
-const CACHE_NAME = 'video-loop-cache-v2';  // bump version so browsers see the change
+const CACHE_NAME = 'video-loop-cache-v3';  // bump version so browsers see the change
 const ASSETS = [
   'index.html',
   'upload.html',

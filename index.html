@@ -55,7 +55,7 @@
       max-height: 100%;
       transform: translate(-50%, -50%);
       background: #000;
-      cursor: pointer;
+      cursor: default;
     }
     /* Upload form overlay */
     #upload-form {
@@ -63,26 +63,35 @@
       z-index: 1;
       text-align: center;
     }
+    #upload-form label,
     #upload-form input {
-      margin: 1em auto;
       display: block;
+      margin: 0.5em auto;
+    }
+    #upload-form input[type="time"],
+    #upload-form input[type="file"] {
+      font-size: 1rem;
     }
   </style>
 </head>
 <body>
   <div class="video-container">
-    <video id="player" muted loop playsinline autoplay preload="auto">
+    <video id="player" muted loop playsinline preload="auto">
       <!-- source is set dynamically -->
     </video>
   </div>
 
   <div id="upload-form">
-    <h1>Select a video to loop</h1>
+    <h1>Select a video and start time</h1>
+    <label for="start-time">Start time:</label>
+    <input type="time" id="start-time">
+    <label for="file-input">Choose video:</label>
     <input type="file" id="file-input" accept="video/*">
   </div>
 
   <script>
     const fileInput = document.getElementById('file-input');
+    const startInput = document.getElementById('start-time');
     const player = document.getElementById('player');
     const uploadForm = document.getElementById('upload-form');
 
@@ -99,15 +108,35 @@
       }
     }
 
+    // Schedule video playback at the chosen time
+    function schedulePlay(timeValue) {
+      const [h, m] = timeValue.split(':').map(Number);
+      const now = new Date();
+      let start = new Date(now);
+      start.setHours(h, m, 0, 0);
+      if (start <= now) start.setDate(start.getDate() + 1);
+      const delay = start - now;
+      console.log(`Scheduled to start at ${start}, delay ${delay}ms`);
+      setTimeout(() => {
+        player.play();
+        player.style.cursor = 'pointer';
+        player.addEventListener('click', enterFullscreen);
+      }, delay);
+    }
+
     fileInput.addEventListener('change', () => {
       const file = fileInput.files[0];
       if (!file) return;
       player.src = URL.createObjectURL(file);
-      player.play();
       uploadForm.style.display = 'none';
-      // enable click-to-fullscreen
-      player.style.cursor = 'pointer';
-      player.addEventListener('click', enterFullscreen);
+      const timeValue = startInput.value;
+      if (timeValue) {
+        schedulePlay(timeValue);
+      } else {
+        player.play();
+        player.style.cursor = 'pointer';
+        player.addEventListener('click', enterFullscreen);
+      }
     });
   </script>
 </body>

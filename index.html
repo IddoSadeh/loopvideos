@@ -123,8 +123,6 @@
 
       uploadForm.style.display = 'none';
       videoContainer.style.display = 'flex';
-
-      // hide overlay until playback
       choiceOverlay.style.display = 'none';
 
       // schedule play
@@ -134,6 +132,7 @@
 
     // Continue playback: user picks file then play
     continueBtn.addEventListener('click', () => {
+      choiceOverlay.style.display = 'none';
       fileInput.click();
       fileInput.onchange = () => {
         const file = fileInput.files[0];

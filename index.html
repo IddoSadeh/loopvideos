@@ -37,44 +37,40 @@
     }
     #choice-overlay {
       position: absolute; top: 0; left: 0;
-      width: 100%; height: 100%;
-      background: rgba(0,0,0,0.8);
+      width: 100%; height: 100%; background: rgba(0,0,0,0.8);
       display: none; flex-direction: column;
-      justify-content: center; align-items: center;
-      z-index: 2;
+      justify-content: center; align-items: center; z-index: 2;
     }
     #choice-overlay button {
       margin: 1em; padding: 0.75em 1.5em;
       font-size: 1.2rem; background: #444;
-      border: none; color: #fff;
-      border-radius: 4px; cursor: pointer;
+      border: none; color: #fff; border-radius: 4px;
+      cursor: pointer;
     }
     #upload-form {
       position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
       background: rgba(0,0,0,0.7);
       display: none; flex-direction: column;
-      justify-content: center; align-items: center;
-      z-index: 1;
+      justify-content: center; align-items: center; z-index: 1;
     }
-    #upload-form label, #upload-form select,
-    #upload-form input, #upload-form button {
+    #upload-form label, #upload-form input, #upload-form button {
       margin: 0.5em; font-size: 1rem; color: #fff;
     }
-    #upload-form select, #upload-form input[type="time"] {
+    #upload-form input[type="file"],
+    #upload-form input[type="time"] {
       padding: 0.5em; background: #222;
-      border: none; color: #fff;
-      border-radius: 4px;
+      border: none; color: #fff; border-radius: 4px;
     }
     #upload-form button {
       padding: 0.75em 1.5em; background: #444;
-      border: none; color: #fff;
-      border-radius: 4px; cursor: pointer;
+      border: none; color: #fff; border-radius: 4px;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <div class="video-container" id="video-container" style="display:flex;">
+  <div class="video-container" id="video-container">
     <video id="player" muted loop playsinline preload="auto"></video>
     <div id="choice-overlay">
       <button id="continue-btn">Continue playback</button>
@@ -84,12 +80,8 @@
 
   <div id="upload-form">
     <h1>Configure VideoLoop</h1>
-    <label for="video-select">Choose video:</label>
-    <select id="video-select">
-      <option value="video1.mp4">Video 1</option>
-      <option value="video2.mp4">Video 2</option>
-      <!-- Add more static filenames here -->
-    </select>
+    <label for="file-input">Choose video file:</label>
+    <input type="file" id="file-input" accept="video/*">
     <label for="start-time">Start time:</label>
     <input type="time" id="start-time">
     <button id="start-btn">Start</button>
@@ -102,43 +94,65 @@
     const choiceOverlay = document.getElementById('choice-overlay');
     const continueBtn = document.getElementById('continue-btn');
     const newBtn = document.getElementById('new-btn');
-    const videoSelect = document.getElementById('video-select');
+    const fileInput = document.getElementById('file-input');
     const startInput = document.getElementById('start-time');
     const startBtn = document.getElementById('start-btn');
 
-    // localStorage for settings
-    function saveSettings(name, ts) {
-      localStorage.setItem('videoName', name);
-      localStorage.setItem('startTs', ts);
+    // IndexedDB file storage
+    function openDB() {
+      return new Promise((res, rej) => {
+        const req = indexedDB.open('VideoLoopDB', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('videos');
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
     }
-    function loadSettings() {
-      return {
-        name: localStorage.getItem('videoName'),
-        startTs: Number(localStorage.getItem('startTs'))
-      };
+    async function saveVideoFile(file) {
+      const db = await openDB();
+      const tx = db.transaction('videos', 'readwrite');
+      tx.objectStore('videos').put(file, 'current');
+      await tx.complete;
     }
-    function clearSettings() {
-      localStorage.removeItem('videoName');
-      localStorage.removeItem('startTs');
+    async function loadVideoFile() {
+      const db = await openDB();
+      const tx = db.transaction('videos', 'readonly');
+      const file = await tx.objectStore('videos').get('current');
+      await tx.complete;
+      return file;
     }
 
-    // Schedule or play
-    function schedulePlayback(name, startTs) {
-      player.src = name;
-      player.load();
+    // localStorage for start time
+    function saveStartTs(ts) { localStorage.setItem('startTs', ts); }
+    function loadStartTs() { return Number(localStorage.getItem('startTs')); }
+    function clearSettings() {
+      localStorage.removeItem('startTs');
+      openDB().then(db => {
+        const tx = db.transaction('videos','readwrite');
+        tx.objectStore('videos').delete('current');
+        return tx.complete;
+      });
+    }
+
+    // Schedule playback or resume
+    function startLoopAt(file, startTs) {
+      const url = URL.createObjectURL(file);
+      player.src = url;
       player.addEventListener('loadedmetadata', () => {
+        uploadForm.style.display = 'none';
+        videoContainer.style.display = 'flex';
         const now = Date.now();
-        const delay = startTs - now;
-        choiceOverlay.style.display = 'flex';
-        if (delay > 0) {
-          setTimeout(() => playLoop(name, startTs), delay);
+        if (now < startTs) {
+          choiceOverlay.style.display = 'flex';
+          setTimeout(() => playLoopAt(file, startTs), startTs - now);
+        } else {
+          choiceOverlay.style.display = 'flex';
         }
       }, { once: true });
     }
 
-    function playLoop(name, startTs) {
-      player.src = name;
-      player.load();
+    function playLoopAt(file, startTs) {
+      const url = URL.createObjectURL(file);
+      player.src = url;
       player.addEventListener('loadedmetadata', () => {
         const now = Date.now();
         const elapsed = now - startTs;
@@ -152,50 +166,47 @@
     }
 
     // Initialization
-    window.addEventListener('load', () => {
-      const { name, startTs } = loadSettings();
-      if (name && startTs) {
-        uploadForm.style.display = 'none';
-        videoContainer.style.display = 'flex';
-        schedulePlayback(name, startTs);
+    window.addEventListener('load', async () => {
+      const file = await loadVideoFile();
+      const startTs = loadStartTs();
+      if (file && startTs) {
+        startLoopAt(file, startTs);
       } else {
         uploadForm.style.display = 'flex';
       }
     });
 
     // Start button
-    startBtn.addEventListener('click', () => {
-      const name = videoSelect.value;
+    startBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) { alert('Select a video file'); return; }
       const timeVal = startInput.value;
-      if (!name) return alert('Select a video');
-      if (!timeVal) return alert('Set a start time');
-      let ts = new Date();
-      const [h, m] = timeVal.split(':').map(Number);
-      ts.setHours(h, m, 0, 0);
+      if (!timeVal) { alert('Set a start time'); return; }
+      let ts = new Date(); ts.setHours(...timeVal.split(':').map(Number), 0, 0);
       if (ts.getTime() <= Date.now()) ts.setDate(ts.getDate() + 1);
-      saveSettings(name, ts.getTime());
-      uploadForm.style.display = 'none';
-      videoContainer.style.display = 'flex';
-      schedulePlayback(name, ts.getTime());
+      await saveVideoFile(file);
+      saveStartTs(ts.getTime());
+      startLoopAt(file, ts.getTime());
     });
 
-    // Continue or new settings
-    continueBtn.addEventListener('click', () => {
-      const { name, startTs } = loadSettings();
-      playLoop(name, startTs);
+    continueBtn.addEventListener('click', async () => {
+      const file = await loadVideoFile();
+      const startTs = loadStartTs();
+      playLoopAt(file, startTs);
     });
     newBtn.addEventListener('click', () => {
       clearSettings();
-      player.pause();
-      player.removeAttribute('src');
+      player.pause(); player.removeAttribute('src');
       choiceOverlay.style.display = 'none';
-      videoContainer.style.display = 'none';
       uploadForm.style.display = 'flex';
     });
 
-    // Fullscreen on click
+    // Fullscreen on tap
     player.addEventListener('click', () => {
-      const rfs = player.requestFullscreen || player.webkitRequestFullscreen || player.webkitEnterFullscreen || player.msRequestFullscreen;
+      const rfs = player.requestFullscreen ||
+                  player.webkitRequestFullscreen ||
+                  player.webkitEnterFullscreen ||
+                  player.msRequestFullscreen;
       if (rfs) rfs.call(player, { navigationUI: 'hide' });
     });
   </script>

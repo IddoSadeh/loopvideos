@@ -32,6 +32,7 @@
       color: #fff; font-family: sans-serif;
     }
     .video-container {
+      display: none;
       position: fixed; top: 0; left: 0;
       width: 100%; height: 100%; overflow: hidden;
     }
@@ -41,7 +42,7 @@
       transform: translate(-50%, -50%);
       background: #000; cursor: pointer;
     }
-    #upload-form, #change-btn {
+    #upload-form {
       position: relative; z-index: 1; text-align: center;
       background: rgba(0,0,0,0.7); padding: 1em; border-radius: 8px;
     }
@@ -49,9 +50,11 @@
       display: block; margin: 0.5em auto;
     }
     #change-btn {
-      display: none; margin-top: 1em;
-      padding: 0.5em 1em; font-size: 1rem;
-      cursor: pointer;
+      display: none;
+      position: relative; z-index: 1;
+      margin-top: 1em; padding: 0.5em 1em; font-size: 1rem;
+      cursor: pointer; background: #444; border: none; color: #fff;
+      border-radius: 4px;
     }
   </style>
 </head>
@@ -76,8 +79,9 @@
     const startInput = document.getElementById('start-time');
     const uploadForm = document.getElementById('upload-form');
     const changeBtn = document.getElementById('change-btn');
+    const videoContainer = document.querySelector('.video-container');
 
-    // IndexedDB helpers for storing file blob
+    // IndexedDB helpers
     function openDB() {
       return new Promise((res, rej) => {
         const req = indexedDB.open('VideoLoopDB', 1);
@@ -100,12 +104,15 @@
       return file;
     }
 
-    // LocalStorage helpers for start timestamp
+    // LocalStorage helpers
     function saveStartTs(ts) { localStorage.setItem('startTs', ts); }
     function loadStartTs() { return Number(localStorage.getItem('startTs')); }
 
-    // Clear settings & show form
+    // Reset to form
     async function clearSettings() {
+      player.pause();
+      player.removeAttribute('src');
+      videoContainer.style.display = 'none';
       localStorage.removeItem('startTs');
       const db = await openDB();
       const tx = db.transaction('videos', 'readwrite');
@@ -115,13 +122,13 @@
       changeBtn.style.display = 'none';
     }
 
-    // Enter fullscreen on click
+    // Fullscreen
     function enterFullscreen() {
       const rfs = player.requestFullscreen || player.webkitRequestFullscreen || player.webkitEnterFullscreen || player.msRequestFullscreen;
       if (rfs) rfs.call(player, { navigationUI: 'hide' });
     }
 
-    // Calculate loop position and start playback
+    // Start loop
     function startLoopAt(file, startTs) {
       const url = URL.createObjectURL(file);
       player.src = url;
@@ -131,34 +138,32 @@
         const dur = player.duration * 1000;
         const pos = ((elapsed % dur) + dur) % dur;
         player.currentTime = pos / 1000;
+        uploadForm.style.display = 'none';
+        videoContainer.style.display = 'block';
         player.play();
         player.style.cursor = 'pointer';
         player.addEventListener('click', enterFullscreen);
         changeBtn.style.display = 'block';
-      });
+      }, { once: true });
     }
 
-    // Bootstrap on load
+    // Init
     window.addEventListener('load', async () => {
       const file = await loadVideoFile();
       const startTs = loadStartTs();
       if (file && startTs) {
-        uploadForm.style.display = 'none';
         startLoopAt(file, startTs);
       }
     });
 
-    // Handle new selection
+    // New selection
     fileInput.addEventListener('change', async () => {
-      const file = fileInput.files[0];
-      if (!file) return;
+      const file = fileInput.files[0]; if (!file) return;
       await saveVideoFile(file);
       const [h, m] = startInput.value.split(':').map(Number);
-      let ts = new Date();
-      ts.setHours(h, m, 0, 0);
+      let ts = new Date(); ts.setHours(h, m, 0, 0);
       if (ts.getTime() <= Date.now()) ts.setDate(ts.getDate() + 1);
       saveStartTs(ts.getTime());
-      uploadForm.style.display = 'none';
       startLoopAt(file, ts.getTime());
     });
 

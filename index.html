@@ -20,14 +20,12 @@
   </script>
 
   <style>
-    /* Full-viewport and letterboxing */
     html, body {
       margin: 0; padding: 0;
       width: 100%; height: 100%; overflow: hidden;
       background: #000;
       color: #fff; font-family: sans-serif;
     }
-    /* Video container */
     .video-container {
       display: none;
       position: fixed; top: 0; left: 0;
@@ -39,7 +37,6 @@
       max-width: 100%; max-height: 100%;
       cursor: pointer;
     }
-    /* Overlay for initial choice */
     #choice-overlay {
       position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
@@ -60,7 +57,6 @@
       border-radius: 4px;
       cursor: pointer;
     }
-    /* Upload form overlay */
     #upload-form {
       position: absolute; top: 0; left: 0;
       width: 100%; height: 100%;
@@ -111,12 +107,14 @@
     const startInput = document.getElementById('start-time');
 
     // IndexedDB helpers
-    function openDB() { return new Promise((res, rej) => {
-      const req = indexedDB.open('VideoLoopDB', 1);
-      req.onupgradeneeded = () => req.result.createObjectStore('videos');
-      req.onsuccess = () => res(req.result);
-      req.onerror = () => rej(req.error);
-    });}
+    function openDB() {
+      return new Promise((res, rej) => {
+        const req = indexedDB.open('VideoLoopDB', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('videos');
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+    }
     async function saveVideoFile(file) {
       const db = await openDB();
       const tx = db.transaction('videos', 'readwrite');
@@ -143,7 +141,7 @@
       });
     }
 
-    // Calculate and start loop
+    // Calculate and prepare loop or schedule play
     function startLoopAt(file, startTs) {
       const url = URL.createObjectURL(file);
       player.src = url;
@@ -155,10 +153,16 @@
         player.currentTime = pos / 1000;
         uploadForm.style.display = 'none';
         choiceOverlay.style.display = 'flex';
+
+        if (now < startTs) {
+          // Schedule automatic play at start time
+          setTimeout(() => playNow(), startTs - now);
+        }
+        // If now >= startTs, wait for user to press "Continue playback"
       }, { once: true });
     }
 
-    // Play video now
+    // Play video now (from overlay)
     function playNow() {
       choiceOverlay.style.display = 'none';
       player.play();

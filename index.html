@@ -24,120 +24,145 @@
   </script>
 
   <style>
-    /* Full viewport and black background for letterboxing */
     html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
+      margin: 0; padding: 0;
+      width: 100%; height: 100%; overflow: hidden;
       background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      font-family: sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-family: sans-serif;
     }
-    /* Container for the video */
     .video-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
+      position: fixed; top: 0; left: 0;
+      width: 100%; height: 100%; overflow: hidden;
     }
     .video-container video {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      max-width: 100%;
-      max-height: 100%;
+      position: absolute; top: 50%; left: 50%;
+      max-width: 100%; max-height: 100%;
       transform: translate(-50%, -50%);
-      background: #000;
-      cursor: default;
+      background: #000; cursor: pointer;
     }
-    /* Upload form overlay */
-    #upload-form {
-      position: relative;
-      z-index: 1;
-      text-align: center;
+    #upload-form, #change-btn {
+      position: relative; z-index: 1; text-align: center;
+      background: rgba(0,0,0,0.7); padding: 1em; border-radius: 8px;
     }
-    #upload-form label,
-    #upload-form input {
-      display: block;
-      margin: 0.5em auto;
+    #upload-form label, #upload-form input {
+      display: block; margin: 0.5em auto;
     }
-    #upload-form input[type="time"],
-    #upload-form input[type="file"] {
-      font-size: 1rem;
+    #change-btn {
+      display: none; margin-top: 1em;
+      padding: 0.5em 1em; font-size: 1rem;
+      cursor: pointer;
     }
   </style>
 </head>
 <body>
   <div class="video-container">
-    <video id="player" muted loop playsinline preload="auto">
-      <!-- source is set dynamically -->
-    </video>
+    <video id="player" muted loop playsinline preload="auto"></video>
   </div>
 
   <div id="upload-form">
-    <h1>Select a video and start time</h1>
+    <h1>Select a video & start time</h1>
     <label for="start-time">Start time:</label>
     <input type="time" id="start-time">
-    <label for="file-input">Choose video:</label>
+    <label for="file-input">Choose video file:</label>
     <input type="file" id="file-input" accept="video/*">
   </div>
 
+  <button id="change-btn">Change video/time</button>
+
   <script>
+    const player = document.getElementById('player');
     const fileInput = document.getElementById('file-input');
     const startInput = document.getElementById('start-time');
-    const player = document.getElementById('player');
     const uploadForm = document.getElementById('upload-form');
+    const changeBtn = document.getElementById('change-btn');
 
-    // Enter fullscreen on video click (YouTube-style)
+    // IndexedDB helpers for storing file blob
+    function openDB() {
+      return new Promise((res, rej) => {
+        const req = indexedDB.open('VideoLoopDB', 1);
+        req.onupgradeneeded = () => req.result.createObjectStore('videos');
+        req.onsuccess = () => res(req.result);
+        req.onerror = () => rej(req.error);
+      });
+    }
+    async function saveVideoFile(file) {
+      const db = await openDB();
+      const tx = db.transaction('videos', 'readwrite');
+      tx.objectStore('videos').put(file, 'current');
+      return tx.complete;
+    }
+    async function loadVideoFile() {
+      const db = await openDB();
+      const tx = db.transaction('videos', 'readonly');
+      const file = await tx.objectStore('videos').get('current');
+      await tx.complete;
+      return file;
+    }
+
+    // LocalStorage helpers for start timestamp
+    function saveStartTs(ts) { localStorage.setItem('startTs', ts); }
+    function loadStartTs() { return Number(localStorage.getItem('startTs')); }
+
+    // Clear settings & show form
+    async function clearSettings() {
+      localStorage.removeItem('startTs');
+      const db = await openDB();
+      const tx = db.transaction('videos', 'readwrite');
+      tx.objectStore('videos').delete('current');
+      await tx.complete;
+      uploadForm.style.display = 'block';
+      changeBtn.style.display = 'none';
+    }
+
+    // Enter fullscreen on click
     function enterFullscreen() {
-      if (player.requestFullscreen) {
-        player.requestFullscreen({ navigationUI: 'hide' });
-      } else if (player.webkitEnterFullscreen) {
-        player.webkitEnterFullscreen();
-      } else if (player.webkitRequestFullscreen) {
-        player.webkitRequestFullscreen();
-      } else if (player.msRequestFullscreen) {
-        player.msRequestFullscreen();
-      }
+      const rfs = player.requestFullscreen || player.webkitRequestFullscreen || player.webkitEnterFullscreen || player.msRequestFullscreen;
+      if (rfs) rfs.call(player, { navigationUI: 'hide' });
     }
 
-    // Schedule video playback at the chosen time
-    function schedulePlay(timeValue) {
-      const [h, m] = timeValue.split(':').map(Number);
-      const now = new Date();
-      let start = new Date(now);
-      start.setHours(h, m, 0, 0);
-      if (start <= now) start.setDate(start.getDate() + 1);
-      const delay = start - now;
-      console.log(`Scheduled to start at ${start}, delay ${delay}ms`);
-      setTimeout(() => {
+    // Calculate loop position and start playback
+    function startLoopAt(file, startTs) {
+      const url = URL.createObjectURL(file);
+      player.src = url;
+      player.addEventListener('loadedmetadata', () => {
+        const now = Date.now();
+        const elapsed = now - startTs;
+        const dur = player.duration * 1000;
+        const pos = ((elapsed % dur) + dur) % dur;
+        player.currentTime = pos / 1000;
         player.play();
         player.style.cursor = 'pointer';
         player.addEventListener('click', enterFullscreen);
-      }, delay);
+        changeBtn.style.display = 'block';
+      });
     }
 
-    fileInput.addEventListener('change', () => {
-      const file = fileInput.files[0];
-      if (!file) return;
-      player.src = URL.createObjectURL(file);
-      uploadForm.style.display = 'none';
-      const timeValue = startInput.value;
-      if (timeValue) {
-        schedulePlay(timeValue);
-      } else {
-        player.play();
-        player.style.cursor = 'pointer';
-        player.addEventListener('click', enterFullscreen);
+    // Bootstrap on load
+    window.addEventListener('load', async () => {
+      const file = await loadVideoFile();
+      const startTs = loadStartTs();
+      if (file && startTs) {
+        uploadForm.style.display = 'none';
+        startLoopAt(file, startTs);
       }
     });
+
+    // Handle new selection
+    fileInput.addEventListener('change', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+      await saveVideoFile(file);
+      const [h, m] = startInput.value.split(':').map(Number);
+      let ts = new Date();
+      ts.setHours(h, m, 0, 0);
+      if (ts.getTime() <= Date.now()) ts.setDate(ts.getDate() + 1);
+      saveStartTs(ts.getTime());
+      uploadForm.style.display = 'none';
+      startLoopAt(file, ts.getTime());
+    });
+
+    changeBtn.addEventListener('click', clearSettings);
   </script>
 </body>
 </html>

@@ -5,10 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>VideoLoop PWA</title>
 
-  <!-- Android PWA manifest -->
+  <!-- PWA manifest -->
   <link rel="manifest" href="manifest.json">
-
-  <!-- iOS PWA support -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="VideoLoop">
@@ -17,84 +15,113 @@
   <!-- Service Worker registration -->
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js')
-        .then(() => console.log('SW registered'))
-        .catch(console.error);
+      navigator.serviceWorker.register('sw.js').catch(console.error);
     }
   </script>
 
   <style>
+    /* Full-viewport and letterboxing */
     html, body {
       margin: 0; padding: 0;
       width: 100%; height: 100%; overflow: hidden;
       background: #000;
-      display: flex; align-items: center; justify-content: center;
       color: #fff; font-family: sans-serif;
     }
+    /* Video container */
     .video-container {
       display: none;
       position: fixed; top: 0; left: 0;
       width: 100%; height: 100%; overflow: hidden;
+      background: #000;
+      justify-content: center; align-items: center;
     }
     .video-container video {
-      position: absolute; top: 50%; left: 50%;
       max-width: 100%; max-height: 100%;
-      transform: translate(-50%, -50%);
-      background: #000; cursor: pointer;
+      cursor: pointer;
     }
+    /* Overlay for initial choice */
+    #choice-overlay {
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 2;
+    }
+    #choice-overlay button {
+      margin: 1em;
+      padding: 0.75em 1.5em;
+      font-size: 1.2rem;
+      background: #444;
+      border: none;
+      color: #fff;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    /* Upload form overlay */
     #upload-form {
-      position: relative; z-index: 1; text-align: center;
-      background: rgba(0,0,0,0.7); padding: 1em; border-radius: 8px;
+      position: absolute; top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.7);
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      z-index: 1;
     }
     #upload-form label, #upload-form input {
-      display: block; margin: 0.5em auto;
+      display: block; margin: 0.5em;
+      font-size: 1rem;
+      color: #fff;
     }
-    #change-btn {
-      display: none;
-      position: relative; z-index: 1;
-      margin-top: 1em; padding: 0.5em 1em; font-size: 1rem;
-      cursor: pointer; background: #444; border: none; color: #fff;
+    #upload-form input[type="time"],
+    #upload-form input[type="file"] {
+      padding: 0.5em;
+      background: #222;
+      border: none;
+      color: #fff;
       border-radius: 4px;
     }
   </style>
 </head>
 <body>
-  <div class="video-container">
+  <div class="video-container" style="display:flex;">
     <video id="player" muted loop playsinline preload="auto"></video>
+    <div id="choice-overlay">
+      <button id="continue-btn">Continue playback</button>
+      <button id="new-btn">Select new video/time</button>
+    </div>
   </div>
 
   <div id="upload-form">
-    <h1>Select a video & start time</h1>
+    <h1 style="color:#fff;">Configure VideoLoop</h1>
     <label for="start-time">Start time:</label>
     <input type="time" id="start-time">
     <label for="file-input">Choose video file:</label>
     <input type="file" id="file-input" accept="video/*">
   </div>
 
-  <button id="change-btn">Change video/time</button>
-
   <script>
     const player = document.getElementById('player');
+    const uploadForm = document.getElementById('upload-form');
+    const choiceOverlay = document.getElementById('choice-overlay');
+    const continueBtn = document.getElementById('continue-btn');
+    const newBtn = document.getElementById('new-btn');
     const fileInput = document.getElementById('file-input');
     const startInput = document.getElementById('start-time');
-    const uploadForm = document.getElementById('upload-form');
-    const changeBtn = document.getElementById('change-btn');
-    const videoContainer = document.querySelector('.video-container');
 
     // IndexedDB helpers
-    function openDB() {
-      return new Promise((res, rej) => {
-        const req = indexedDB.open('VideoLoopDB', 1);
-        req.onupgradeneeded = () => req.result.createObjectStore('videos');
-        req.onsuccess = () => res(req.result);
-        req.onerror = () => rej(req.error);
-      });
-    }
+    function openDB() { return new Promise((res, rej) => {
+      const req = indexedDB.open('VideoLoopDB', 1);
+      req.onupgradeneeded = () => req.result.createObjectStore('videos');
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });}
     async function saveVideoFile(file) {
       const db = await openDB();
       const tx = db.transaction('videos', 'readwrite');
       tx.objectStore('videos').put(file, 'current');
-      return tx.complete;
+      await tx.complete;
     }
     async function loadVideoFile() {
       const db = await openDB();
@@ -107,28 +134,16 @@
     // LocalStorage helpers
     function saveStartTs(ts) { localStorage.setItem('startTs', ts); }
     function loadStartTs() { return Number(localStorage.getItem('startTs')); }
-
-    // Reset to form
-    async function clearSettings() {
-      player.pause();
-      player.removeAttribute('src');
-      videoContainer.style.display = 'none';
+    function clearStored() {
       localStorage.removeItem('startTs');
-      const db = await openDB();
-      const tx = db.transaction('videos', 'readwrite');
-      tx.objectStore('videos').delete('current');
-      await tx.complete;
-      uploadForm.style.display = 'block';
-      changeBtn.style.display = 'none';
+      openDB().then(db => {
+        const tx = db.transaction('videos','readwrite');
+        tx.objectStore('videos').delete('current');
+        return tx.complete;
+      });
     }
 
-    // Fullscreen
-    function enterFullscreen() {
-      const rfs = player.requestFullscreen || player.webkitRequestFullscreen || player.webkitEnterFullscreen || player.msRequestFullscreen;
-      if (rfs) rfs.call(player, { navigationUI: 'hide' });
-    }
-
-    // Start loop
+    // Calculate and start loop
     function startLoopAt(file, startTs) {
       const url = URL.createObjectURL(file);
       player.src = url;
@@ -139,24 +154,39 @@
         const pos = ((elapsed % dur) + dur) % dur;
         player.currentTime = pos / 1000;
         uploadForm.style.display = 'none';
-        videoContainer.style.display = 'block';
-        player.play();
-        player.style.cursor = 'pointer';
-        player.addEventListener('click', enterFullscreen);
-        changeBtn.style.display = 'block';
+        choiceOverlay.style.display = 'flex';
       }, { once: true });
     }
 
-    // Init
+    // Play video now
+    function playNow() {
+      choiceOverlay.style.display = 'none';
+      player.play();
+      player.style.cursor = 'pointer';
+    }
+
+    // Show form for new configuration
+    function showForm() {
+      choiceOverlay.style.display = 'none';
+      uploadForm.style.display = 'flex';
+      clearStored();
+      player.pause();
+      player.removeAttribute('src');
+    }
+
+    // On load: decide initial view
     window.addEventListener('load', async () => {
       const file = await loadVideoFile();
       const startTs = loadStartTs();
       if (file && startTs) {
+        document.querySelector('.video-container').style.display = 'flex';
         startLoopAt(file, startTs);
+      } else {
+        uploadForm.style.display = 'flex';
       }
     });
 
-    // New selection
+    // New selection handler
     fileInput.addEventListener('change', async () => {
       const file = fileInput.files[0]; if (!file) return;
       await saveVideoFile(file);
@@ -164,10 +194,12 @@
       let ts = new Date(); ts.setHours(h, m, 0, 0);
       if (ts.getTime() <= Date.now()) ts.setDate(ts.getDate() + 1);
       saveStartTs(ts.getTime());
+      document.querySelector('.video-container').style.display = 'flex';
       startLoopAt(file, ts.getTime());
     });
 
-    changeBtn.addEventListener('click', clearSettings);
+    continueBtn.addEventListener('click', playNow);
+    newBtn.addEventListener('click', showForm);
   </script>
 </body>
 </html>

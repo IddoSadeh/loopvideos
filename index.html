@@ -92,15 +92,16 @@
     const startInput = document.getElementById('start-time');
     const startBtn = document.getElementById('start-btn');
 
-    // localStorage for start time
+    // Persist start time only
     function saveStartTs(ts) { localStorage.setItem('startTs', ts); }
     function loadStartTs() { return Number(localStorage.getItem('startTs')); }
     function clearSettings() { localStorage.removeItem('startTs'); }
 
-    // Show form or overlay on startup
+    // Initialize view
     window.addEventListener('load', () => {
       const startTs = loadStartTs();
       if (startTs) {
+        uploadForm.style.display = 'none';
         videoContainer.style.display = 'flex';
         choiceOverlay.style.display = 'flex';
       } else {
@@ -108,48 +109,62 @@
       }
     });
 
-    // Handle new settings
+    // Schedule initial start
     startBtn.addEventListener('click', () => {
       const file = fileInput.files[0];
       const timeVal = startInput.value;
       if (!file) return alert('Select a video file');
       if (!timeVal) return alert('Set a start time');
+
       let ts = new Date();
-      ts.setHours(...timeVal.split(':').map(Number),0,0);
+      ts.setHours(...timeVal.split(':').map(Number), 0, 0);
       if (ts.getTime() <= Date.now()) ts.setDate(ts.getDate()+1);
       saveStartTs(ts.getTime());
+
       uploadForm.style.display = 'none';
-      choiceOverlay.style.display = 'flex';
+      videoContainer.style.display = 'flex';
+
+      // hide overlay until playback
+      choiceOverlay.style.display = 'none';
+
+      // schedule play
+      const delay = ts.getTime() - Date.now();
+      setTimeout(() => playFile(file, ts.getTime()), delay);
     });
 
-    // Continue playback: choose video then play
+    // Continue playback: user picks file then play
     continueBtn.addEventListener('click', () => {
       fileInput.click();
       fileInput.onchange = () => {
         const file = fileInput.files[0];
         const startTs = loadStartTs();
-        const url = URL.createObjectURL(file);
-        player.src = url;
-        player.addEventListener('loadedmetadata', () => {
-          const now = Date.now();
-          const elapsed = now - startTs;
-          const dur = player.duration * 1000;
-          const pos = ((elapsed % dur)+dur)%dur;
-          player.currentTime = pos/1000;
-          choiceOverlay.style.display = 'none';
-          player.play();
-          player.style.cursor='pointer';
-        }, { once: true });
+        playFile(file, startTs);
       };
     });
 
-    // New settings
+    // Reset to new settings
     newBtn.addEventListener('click', () => {
       clearSettings();
-      videoContainer.style.display = 'none';
+      player.pause(); player.removeAttribute('src');
       choiceOverlay.style.display = 'none';
+      videoContainer.style.display = 'none';
       uploadForm.style.display = 'flex';
     });
+
+    // Core play logic
+    function playFile(file, startTs) {
+      const url = URL.createObjectURL(file);
+      player.src = url;
+      player.addEventListener('loadedmetadata', () => {
+        const now = Date.now();
+        const elapsed = now - startTs;
+        const dur = player.duration * 1000;
+        const pos = ((elapsed % dur) + dur) % dur;
+        player.currentTime = pos/1000;
+        player.play();
+        player.style.cursor = 'pointer';
+      }, { once: true });
+    }
 
     // Fullscreen on tap
     player.addEventListener('click', () => {

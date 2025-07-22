@@ -7,10 +7,11 @@
 
   <!-- PWA manifest -->
   <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="VideoLoop">
-  <link rel="apple-touch-icon" href="invisible-man.png">
+  <link rel="apple-touch-icon" href="invisible-man.jpg">
 
   <script>
     if ('serviceWorker' in navigator) {
@@ -64,9 +65,11 @@
       align-items: center;
     }
     .video-container video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
+      /* fixed CSS dimensions for consistent size */
+      width: 360px;
+      height: 640px;
+      object-fit: contain;
+      background: #000;
       cursor: pointer;
     }
   </style>
@@ -88,25 +91,26 @@
     async function getNetworkDrift() {
       try {
         const t0 = Date.now();
-        const res = await fetch('https://worldtimeapi.org/api/ip');
+        const res = await fetch('https://worldtimeapi.org/api/ip', { cache: 'no-store' });
         const t1 = Date.now();
         const { utc_datetime } = await res.json();
         const serverTs = new Date(utc_datetime).getTime();
         const rtt = t1 - t0;
-        // drift = (serverTime - localTime) + half RTT
-        return (serverTs - t1) + (rtt / 2);
+        const drift = (serverTs - t1) + (rtt / 2);
+        console.log('Network drift (ms):', drift);
+        return drift;
       } catch (e) {
         console.warn('Time sync failed, defaulting to local clock', e);
         return 0;
       }
     }
 
-    const fileInput     = document.getElementById('file-input');
-    const startInput    = document.getElementById('start-time');
-    const playBtn       = document.getElementById('play-btn');
-    const form          = document.getElementById('form-container');
-    const videoContainer= document.getElementById('video-container');
-    const player        = document.getElementById('player');
+    const fileInput      = document.getElementById('file-input');
+    const startInput     = document.getElementById('start-time');
+    const playBtn        = document.getElementById('play-btn');
+    const form           = document.getElementById('form-container');
+    const videoContainer = document.getElementById('video-container');
+    const player         = document.getElementById('player');
 
     playBtn.addEventListener('click', async () => {
       const file = fileInput.files[0];
@@ -126,12 +130,11 @@
 
       // 3) prepare video metadata
       const url = URL.createObjectURL(file);
-      player.src        = url;
-      player.loop       = true;
-      player.muted      = true;
-      player.playsInline= true;
+      player.src         = url;
+      player.loop        = true;
+      player.muted       = true;
+      player.playsInline = true;
       player.load();
-      // wait for metadata
       await new Promise(res => {
         if (player.readyState >= 1) return res();
         player.addEventListener('loadedmetadata', res, { once: true });
@@ -139,25 +142,21 @@
       const durationMs = player.duration * 1000;
 
       // show video container
-      form.style.display         = 'none';
+      form.style.display          = 'none';
       videoContainer.style.display = 'flex';
 
-      // jump+play function with canplay-based URL revoke
+      // jump+play, waiting for canplay
       const schedulePlayback = () => {
         const nowNet  = Date.now() + drift;
         const elapsed = nowNet - startTsNet;
         const posMs   = ((elapsed % durationMs) + durationMs) % durationMs;
         player.currentTime = posMs / 1000;
-        // wait for frame, then play + revoke URL
-        const onCanPlay = () => {
+        player.addEventListener('canplay', () => {
           player.play();
-          URL.revokeObjectURL(url);
-          player.removeEventListener('canplay', onCanPlay);
-        };
-        player.addEventListener('canplay', onCanPlay);
+        }, { once: true });
       };
 
-      // schedule via two‑phase timer
+      // schedule playback via two-phase timer
       const nowNet = Date.now() + drift;
       if (startTsNet <= nowNet) {
         schedulePlayback();

@@ -46,7 +46,7 @@
       border-radius: 4px;
     }
     #form-container input[type="file"],
-    #form-container input[type="time"] {
+    #form-container input[type="datetime-local"] {
       background: #222;
       color: #fff;
     }
@@ -65,7 +65,6 @@
       align-items: center;
     }
     .video-container video {
-      /* fixed CSS dimensions for consistent size */
       width: 360px;
       height: 640px;
       object-fit: contain;
@@ -78,7 +77,8 @@
   <div id="form-container">
     <h1>Configure VideoLoop</h1>
     <input type="file" id="file-input" accept="video/*">
-    <input type="time" id="start-time">
+    <!-- allow picking full date+time for past starts -->
+    <input type="datetime-local" id="start-time">
     <button id="play-btn">Play</button>
   </div>
 
@@ -116,16 +116,13 @@
       const file = fileInput.files[0];
       const timeVal = startInput.value;
       if (!file) return alert('Select a video file');
-      if (!timeVal) return alert('Set a start time');
+      if (!timeVal) return alert('Set a start date & time');
 
       // 1) get network drift
       const drift = await getNetworkDrift();
 
-      // 2) compute start timestamp (today at HH:MM) in local and network time
-      const [h, m] = timeVal.split(':').map(Number);
-      const startLocal = new Date();
-      startLocal.setHours(h, m, 0, 0);
-      const startTsLocal = startLocal.getTime();
+      // 2) parse full ISO datetime-local value
+      const startTsLocal = new Date(timeVal).getTime();
       const startTsNet = startTsLocal + drift;
 
       // 3) prepare video metadata
@@ -151,9 +148,7 @@
         const elapsed = nowNet - startTsNet;
         const posMs   = ((elapsed % durationMs) + durationMs) % durationMs;
         player.currentTime = posMs / 1000;
-        player.addEventListener('canplay', () => {
-          player.play();
-        }, { once: true });
+        player.addEventListener('canplay', () => player.play(), { once: true });
       };
 
       // schedule playback via two-phase timer

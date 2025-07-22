@@ -3,7 +3,7 @@ const ASSETS = [
   'index.html',
   'manifest.json',
   'sw.js',
-  'invisible-man.jpg'  
+  'invisible-man.png'  
 ];
 
 // On install: cache shell

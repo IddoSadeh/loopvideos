@@ -87,16 +87,17 @@
   </div>
 
   <script>
-    // Fetch a synchronized UTC timestamp and compute local drift
+    // Fetch a synchronized UTC timestamp and compute drift (serverTime - localMidTime)
     async function getNetworkDrift() {
       try {
         const t0 = Date.now();
         const res = await fetch('https://worldtimeapi.org/api/ip', { cache: 'no-store' });
         const t1 = Date.now();
-        const { utc_datetime } = await res.json();
-        const serverTs = new Date(utc_datetime).getTime();
+        const data = await res.json();
+        const serverTs = new Date(data.utc_datetime).getTime();
         const rtt = t1 - t0;
-        const drift = (serverTs - t1) + (rtt / 2);
+        const localMid = t0 + rtt / 2;
+        const drift = serverTs - localMid;
         console.log('Network drift (ms):', drift);
         return drift;
       } catch (e) {
@@ -121,11 +122,14 @@
       // 1) get network drift
       const drift = await getNetworkDrift();
 
-      // 2) parse full ISO datetime-local value
+      // 2) parse selected datetime-local as local timestamp
       const startTsLocal = new Date(timeVal).getTime();
       const startTsNet = startTsLocal + drift;
 
-      // 3) prepare video metadata
+      // Log for debugging
+      console.log('startTsLocal:', startTsLocal, 'startTsNet:', startTsNet);
+
+      // 3) prepare video
       const url = URL.createObjectURL(file);
       player.src         = url;
       player.loop        = true;
@@ -139,15 +143,18 @@
       const durationMs = player.duration * 1000;
 
       // show video container
-      form.style.display          = 'none';
+      form.style.display           = 'none';
       videoContainer.style.display = 'flex';
 
       // jump+play, waiting for canplay
       const schedulePlayback = () => {
-        const nowNet  = Date.now() + drift;
+        const nowNet = Date.now() + drift;
+        console.log('nowNet:', nowNet);
         const elapsed = nowNet - startTsNet;
-        const posMs   = ((elapsed % durationMs) + durationMs) % durationMs;
+        const posMs = ((elapsed % durationMs) + durationMs) % durationMs;
+        console.log('seek to (ms):', posMs);
         player.currentTime = posMs / 1000;
+        // wait for at least one frame
         player.addEventListener('canplay', () => player.play(), { once: true });
       };
 
@@ -157,6 +164,7 @@
         schedulePlayback();
       } else {
         const delay = startTsNet - nowNet;
+        console.log('scheduling in (ms):', delay);
         setTimeout(() => {
           const checker = setInterval(() => {
             if ((Date.now() + drift) >= startTsNet) {
